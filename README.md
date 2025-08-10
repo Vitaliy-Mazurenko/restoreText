@@ -1,0 +1,2 @@
+# restoreText
+Recovering damaged text
