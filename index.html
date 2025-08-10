@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Text Restorer</title>
+  <style>
+    textarea { width: 100%; height: 150px; }
+    #output { margin-top: 20px; white-space: pre-wrap; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h3> Введіть пошкоджений текст:</h3>
+  <textarea id="inputText"></textarea>
+  <br><button onclick="restoreText()">🔍 Відновити текст</button>
+
+  <div id="output"></div>
+
+  <script>
+    let output = "";
+const DICT = [
+  // Всі слова з фрагменту та тесту для самоперевірки
+  "Alice","was","beginning","to","get","very","tired","of","sitting","by","her","sister","on","the","and",
+  "having","nothing","do","once","or","twice","she","had","peeped","into","book","reading","but","it","no",
+  "pictures","conversations","in","what","is","use","a","thought","without", "Hello", "world", "World", "book", "bank"
+];
+
+
+function countLetters(str) {
+  const count = {};
+  for (const ch of str.toLowerCase()) {
+    if (ch >= 'a' && ch <= 'z') count[ch] = (count[ch] || 0) + 1;
+  }
+  return count;
+}
+
+// Функція перевірки, чи слово можна відновити з фрагменту
+function similarEnough(segment, word) {
+  if (segment.length !== word.length) return false;
+  const segLetters = segment.replace(/\*/g, "").split("");
+  const wordLetters = word.split("");
+
+  // Перевірка: чи усі літери сегмента є у слові
+  return segLetters.every(ch => wordLetters.includes(ch));
+}
+
+function matchesWithStars(segment, word) {
+  if (segment.length !== word.length) return false;
+
+  const segCount = countLetters(segment);
+  const wordCount = countLetters(word);
+  const stars = segment.split("*").length - 1;
+
+  let deficit = 0;
+  for (const ch in wordCount) {
+    const sc = segCount[ch] || 0;
+    deficit += Math.max(0, wordCount[ch] - sc);
+  }
+  return deficit === stars;
+}
+
+// Функція для обчислення кількості відповідностей літер на однакових позиціях
+function calculatePositionMatches(segment, word) {
+    let matches = 0;
+    for (let i = 0; i < segment.length; i++) {
+        if (segment[i] !== '*' && segment[i].toLowerCase() === word[i].toLowerCase()) {
+            matches++;
+        }
+    }
+    return matches;
+}
+
+// Основна функція: DP з мемоізацією
+function matchesExactPositions(segment, word) {
+  if (segment.length !== word.length) return false;
+  
+  for (let i = 0; i < segment.length; i++) {
+    if (segment[i] !== '*' && segment[i].toLowerCase() !== word[i].toLowerCase()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+//  функція відновлення слів з пріоритетом позиції
+function restoreWords(input) {
+  const n = input.length;
+  const memo = new Array(n + 1).fill(null);
+  memo[n] = [];
+
+  function dfs(i) {
+    if (memo[i] !== null) return memo[i];
+
+    let candidates = [];
+    
+    for (const word of DICT) {
+      const L = word.length;
+      const seg = input.slice(i, i + L);
+      if (seg.length < L) continue;
+
+      if (matchesWithStars(seg, word) && similarEnough(seg, word)) {
+        const rest = dfs(i + L);
+        if (rest !== null) {
+          candidates.push({
+            word,
+            rest,
+            positionMatches: calculatePositionMatches(seg, word),
+            exactMatch: matchesExactPositions(seg, word)
+          });
+        }
+      }
+    }
+
+    // Сортування спочатку за точними співпадіннями, а потім за відповідністю позиціям.
+    candidates.sort((a, b) => {
+      if (a.exactMatch !== b.exactMatch) {
+        return b.exactMatch ? 1 : -1;
+      }
+      return b.positionMatches - a.positionMatches;
+    });
+
+    memo[i] = candidates.length > 0 ? [candidates[0].word, ...candidates[0].rest] : null;
+    return memo[i];
+  }
+
+  return dfs(0);
+}
+// Форматування речень
+function punctuate(words) {
+  if (!words || words.length === 0) return "";
+  const result = [];
+  let current = [];
+
+  const shouldSplit = (i) => {
+    const triggers = ["so", "then"];
+    return triggers.includes(words[i]);
+  };
+
+  for (let i = 0; i < words.length; i++) {
+    if (i > 0 && shouldSplit(i)) {
+      result.push(current);
+      current = [];
+    }
+    current.push(words[i]);
+  }
+
+  if (current.length > 0) result.push(current);
+
+  return result.map(s => s.join(" "));
+}
+
+function restoreText() {
+   const input = document.getElementById("inputText").value.trim();
+  const result = restoreWords(input);
+  if (!result){
+    document.getElementById("output").textContent = "❌ Не вдалося відновити текст.";
+    return;
+  } else {
+    document.getElementById("output").textContent = "✅ Відновлений текст:\n" + punctuate(result);
+  } 
+}
+
+</script>
+</body>
+</html>
